@@ -8,95 +8,83 @@ import puppeteer from "puppeteer";
 
   const page = await browser.newPage();
 
-  // 1. Buka halaman login
+  // LOGIN
   await page.goto("https://mikhmon.jacobjs.my.id/admin.php?id=login", {
     waitUntil: "networkidle2",
   });
 
-  // 2. Isi login
   await page.type('input[name="user"]', "jacob157-rgb");
   await page.type('input[name="pass"]', "J4cobjokey!");
 
-  // 3. Klik login
-  await page.waitForSelector('input[name="login"]');
-  await page.click('input[name="login"]');
-
-  // 4. Tunggu redirect ke sessions
-  await page.waitForNavigation({ waitUntil: "networkidle2" });
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: "networkidle2" }),
+    page.click('input[name="login"]'),
+  ]);
 
   console.log("Login berhasil");
 
-  // ====== PILIH PROFILE ======
-  const profile = "2k"; // ubah: 2k / 3k / 10k / 30k
+  // PROFILE
+  const profile = "2k";
 
-  let urlGenerate = "";
+  const urlMap = {
+    "2k": "https://mikhmon.jacobjs.my.id/?hotspot-user=generate&genprof=2k-12j&session=AgungWifi",
+    "3k": "https://mikhmon.jacobjs.my.id/?hotspot-user=generate&genprof=3k-24j&session=AgungWifi",
+    "10k":
+      "https://mikhmon.jacobjs.my.id/?hotspot-user=generate&genprof=10k-1mg&session=AgungWifi",
+    "30k":
+      "https://mikhmon.jacobjs.my.id/?hotspot-user=generate&genprof=30k-1bl&session=AgungWifi",
+  };
 
-  if (profile === "2k") {
-    urlGenerate =
-      "https://mikhmon.jacobjs.my.id/?hotspot-user=generate&genprof=2k-12j&session=AgungWifi";
-  } else if (profile === "3k") {
-    urlGenerate =
-      "https://mikhmon.jacobjs.my.id/?hotspot-user=generate&genprof=3k-24j&session=AgungWifi";
-  } else if (profile === "10k") {
-    urlGenerate =
-      "https://mikhmon.jacobjs.my.id/?hotspot-user=generate&genprof=10k-1mg&session=AgungWifi";
-  } else if (profile === "30k") {
-    urlGenerate =
-      "https://mikhmon.jacobjs.my.id/?hotspot-user=generate&genprof=30k-1bl&session=AgungWifi";
-  }
-
-  // 5. Buka halaman generate
-  await page.goto(urlGenerate, { waitUntil: "networkidle2" });
+  await page.goto(urlMap[profile], { waitUntil: "networkidle2" });
 
   console.log("Halaman generate terbuka");
 
-  // ====== SET FORM ======
-
+  // FORM
   await page.type('input[name="qty"]', "36");
   await page.select('select[name="server"]', "all");
 
-  await page.type('select[name="user"]', "vc");
-  await page.select('select[name="user1"]', "8");
+  // user (dropdown)
+  await page.select('select[name="user"]', "vc");
 
-  // timelimit & datalimit
-  let timelimit = "";
-  let datalimit = "";
+  // tunggu efek onchange
+  await page.waitForSelector('select[name="userl"]');
+  await page.select('select[name="userl"]', "8");
 
-  if (profile === "2k") {
-    timelimit = "12h";
-    datalimit = "2";
-  } else if (profile === "3k") {
-    timelimit = "1d";
-    datalimit = "3";
-  } else if (profile === "10k") {
-    timelimit = "7d";
-    datalimit = "8";
-  } else if (profile === "30k") {
-    timelimit = "4w3d";
-    datalimit = "100";
+  // mapping limit
+  const config = {
+    "2k": { time: "12h", data: "2" },
+    "3k": { time: "1d", data: "3" },
+    "10k": { time: "7d", data: "8" },
+    "30k": { time: "4w3d", data: "100" },
+  };
+
+  const { time, data } = config[profile];
+
+  // timelimit
+  await page.waitForSelector('input[name="timelimit"]');
+  await page.click('input[name="timelimit"]', { clickCount: 3 });
+  await page.type('input[name="timelimit"]', time);
+
+  // datalimit
+  await page.waitForSelector('input[name="datalimit"]');
+  await page.click('input[name="datalimit"]', { clickCount: 3 });
+  await page.type('input[name="datalimit"]', data);
+
+  // mbgb
+  const mbgb = await page.$('input[name="mbgb"]');
+  if (mbgb) {
+    await page.$eval('input[name="mbgb"]', (el) => (el.value = "1073741824"));
   }
 
-  await page.evaluate(
-    (timelimit, datalimit) => {
-      document.querySelector('input[name="timelimit"]').value = timelimit;
-      document.querySelector('input[name="datalimit"]').value = datalimit;
-      document.querySelector('input[name="mbgb"]').value = "1073741824";
-    },
-    timelimit,
-    datalimit,
-  );
+  // SUBMIT
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: "networkidle2" }),
+    page.click('button[name="save"]'),
+  ]);
 
-  console.log("Form sudah diisi");
+  console.log("Generate berhasil");
 
-  // 6. Klik generate
-  await page.click('button[name="save"]');
-
-  console.log("Klik generate");
-
-  // optional: tunggu hasil muncul
-  await page.waitForTimeout(5000);
-
-  // DEBUG screenshot
+  // screenshot hasil
   await page.screenshot({ path: "result.png", fullPage: true });
 
   await browser.close();
