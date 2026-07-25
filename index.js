@@ -18,7 +18,8 @@ import puppeteer from "puppeteer";
   await page.type('input[name="pass"]', "J4cobjokey!");
 
   // 3. Klik login
-  await page.click('button[name="login"]');
+  await page.waitForSelector('input[name="login"]');
+  await page.click('input[name="login"]');
 
   // 4. Tunggu redirect ke sessions
   await page.waitForNavigation({ waitUntil: "networkidle2" });
