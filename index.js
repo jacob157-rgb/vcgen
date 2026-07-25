@@ -8,7 +8,7 @@ import puppeteer from "puppeteer";
 
   const page = await browser.newPage();
 
-  // LOGIN
+  // ================= LOGIN =================
   await page.goto("https://mikhmon.jacobjs.my.id/admin.php?id=login", {
     waitUntil: "networkidle2",
   });
@@ -21,9 +21,9 @@ import puppeteer from "puppeteer";
     page.click('input[name="login"]'),
   ]);
 
-  console.log("Login berhasil");
+  console.log("✅ Login berhasil");
 
-  // PROFILE
+  // ================= PILIH PROFILE =================
   const profile = "2k";
 
   const urlMap = {
@@ -37,16 +37,22 @@ import puppeteer from "puppeteer";
 
   await page.goto(urlMap[profile], { waitUntil: "networkidle2" });
 
-  console.log("Halaman generate terbuka");
+  console.log("✅ Halaman generate");
 
-  // FORM
+  // ================= FORM =================
+
+  // qty (FIX BUG 36 jadi 361)
+  await page.waitForSelector('input[name="qty"]');
+  await page.click('input[name="qty"]', { clickCount: 3 });
+  await page.keyboard.press("Backspace");
   await page.type('input[name="qty"]', "36");
+
   await page.select('select[name="server"]', "all");
 
-  // user (dropdown)
+  // user
   await page.select('select[name="user"]', "vc");
 
-  // tunggu efek onchange
+  // tunggu onchange
   await page.waitForSelector('select[name="userl"]');
   await page.select('select[name="userl"]', "8");
 
@@ -63,11 +69,13 @@ import puppeteer from "puppeteer";
   // timelimit
   await page.waitForSelector('input[name="timelimit"]');
   await page.click('input[name="timelimit"]', { clickCount: 3 });
+  await page.keyboard.press("Backspace");
   await page.type('input[name="timelimit"]', time);
 
   // datalimit
   await page.waitForSelector('input[name="datalimit"]');
   await page.click('input[name="datalimit"]', { clickCount: 3 });
+  await page.keyboard.press("Backspace");
   await page.type('input[name="datalimit"]', data);
 
   // mbgb
@@ -76,16 +84,47 @@ import puppeteer from "puppeteer";
     await page.$eval('input[name="mbgb"]', (el) => (el.value = "1073741824"));
   }
 
-  // SUBMIT
+  // ================= GENERATE =================
   await Promise.all([
     page.waitForNavigation({ waitUntil: "networkidle2" }),
     page.click('button[name="save"]'),
   ]);
 
-  console.log("Generate berhasil");
+  console.log("✅ Generate selesai");
 
-  // screenshot hasil
-  await page.screenshot({ path: "result.png", fullPage: true });
+  // ================= AMBIL BATCH TERAKHIR =================
+  await page.goto(
+    "https://mikhmon.jacobjs.my.id/?hotspot=users&profile=all&session=AgungWifi",
+    { waitUntil: "networkidle2" },
+  );
+
+  const lastComment = await page.evaluate(() => {
+    const select = document.querySelector("#comment");
+    return select.options[select.options.length - 1].value;
+  });
+
+  console.log("📦 Batch:", lastComment);
+
+  // ================= OPEN PRINT PAGE =================
+  const printUrl = `https://mikhmon.jacobjs.my.id/voucher/print.php?id=${lastComment}&qr=yes&session=AgungWifi`;
+
+  await page.goto(printUrl, { waitUntil: "networkidle2" });
+
+  // disable auto print popup
+  await page.evaluate(() => {
+    window.print = () => {};
+  });
+
+  // ================= SAVE PDF =================
+  await page.emulateMediaType("screen");
+
+  await page.pdf({
+    path: `voucher-${profile}-${lastComment}.pdf`,
+    format: "A4",
+    printBackground: true,
+  });
+
+  console.log("✅ PDF berhasil dibuat");
 
   await browser.close();
 })();
