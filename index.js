@@ -52,10 +52,10 @@ import puppeteer from "puppeteer";
 
   // ====== SET FORM ======
 
-  await page.select('select[name="server"]', "all");
   await page.type('input[name="qty"]', "36");
+  await page.select('select[name="server"]', "all");
 
-  await page.type('input[name="user"]', "vc");
+  await page.type('select[name="user"]', "vc");
   await page.select('select[name="user1"]', "8");
 
   // timelimit & datalimit
