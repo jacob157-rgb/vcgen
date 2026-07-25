@@ -32,11 +32,11 @@ const profileConfig = {
 };
 
 app.get("/health", (req, res) => {
-    res.status(200).json({
-        status: "ok",
-        uptime: process.uptime(),
-        timestamp: new Date().toISOString()
-    });
+  res.status(200).json({
+    status: "ok",
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
 });
 
 app.post("/generate", async (req, res) => {
@@ -60,8 +60,13 @@ app.post("/generate", async (req, res) => {
   const fileName = `${profile}-${lembar}lbr-${tanggal}.pdf`;
 
   const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    headless: "new",
+    executablePath: process.env.CHROME_PATH || "/usr/bin/chromium",
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+    ],
   });
 
   const page = await browser.newPage();
