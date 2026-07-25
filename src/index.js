@@ -1,5 +1,5 @@
 import express from "express";
-import puppeteer from "puppeteer";
+import puppeteer from "puppeteer-core";
 import fs from "fs";
 
 const app = express();
@@ -59,6 +59,7 @@ app.post("/generate", async (req, res) => {
 
   const fileName = `${profile}-${lembar}lbr-${tanggal}.pdf`;
 
+  console.log("CHROME PATH:", process.env.CHROME_PATH);
   const browser = await puppeteer.launch({
     headless: "new",
     executablePath: process.env.CHROME_PATH || "/usr/bin/chromium",
