@@ -1,6 +1,56 @@
+import express from "express";
 import puppeteer from "puppeteer";
+import fs from "fs";
 
-(async () => {
+const app = express();
+app.use(express.json());
+
+const PORT = 3000;
+
+// mapping profile
+const profileConfig = {
+  "2k": {
+    url: "2k-12j",
+    time: "12h",
+    data: "2",
+  },
+  "3k": {
+    url: "3k-24j",
+    time: "1d",
+    data: "3",
+  },
+  "10k": {
+    url: "10k-1mg",
+    time: "7d",
+    data: "8",
+  },
+  "30k": {
+    url: "30k-1bl",
+    time: "4w3d",
+    data: "100",
+  },
+};
+
+app.post("/generate", async (req, res) => {
+  const { user, pass, profile, lembar } = req.body;
+
+  if (!user || !pass || !profile || !lembar) {
+    return res.status(400).json({ error: "Parameter tidak lengkap" });
+  }
+
+  const config = profileConfig[profile];
+  if (!config) {
+    return res.status(400).json({ error: "Profile tidak valid" });
+  }
+
+  const qty = lembar * 36;
+
+  // format nama file
+  const now = new Date();
+  const tanggal = now.toISOString().slice(2, 10).replace(/-/g, ""); // contoh: 250726
+
+  const fileName = `${profile}-${lembar}lbr-${tanggal}.pdf`;
+
   const browser = await puppeteer.launch({
     headless: true,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -8,123 +58,103 @@ import puppeteer from "puppeteer";
 
   const page = await browser.newPage();
 
-  // ================= LOGIN =================
-  await page.goto("https://mikhmon.jacobjs.my.id/admin.php?id=login", {
-    waitUntil: "networkidle2",
-  });
+  try {
+    // LOGIN
+    await page.goto("https://mikhmon.jacobjs.my.id/admin.php?id=login", {
+      waitUntil: "networkidle2",
+    });
 
-  await page.type('input[name="user"]', "jacob157-rgb");
-  await page.type('input[name="pass"]', "J4cobjokey!");
+    await page.type('input[name="user"]', user);
+    await page.type('input[name="pass"]', pass);
 
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: "networkidle2" }),
-    page.click('input[name="login"]'),
-  ]);
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: "networkidle2" }),
+      page.click('input[name="login"]'),
+    ]);
 
-  console.log("✅ Login berhasil");
+    // GENERATE PAGE
+    const genUrl = `https://mikhmon.jacobjs.my.id/?hotspot-user=generate&genprof=${config.url}&session=AgungWifi`;
 
-  // ================= PILIH PROFILE =================
-  const profile = "2k";
+    await page.goto(genUrl, { waitUntil: "networkidle2" });
 
-  const urlMap = {
-    "2k": "https://mikhmon.jacobjs.my.id/?hotspot-user=generate&genprof=2k-12j&session=AgungWifi",
-    "3k": "https://mikhmon.jacobjs.my.id/?hotspot-user=generate&genprof=3k-24j&session=AgungWifi",
-    "10k":
-      "https://mikhmon.jacobjs.my.id/?hotspot-user=generate&genprof=10k-1mg&session=AgungWifi",
-    "30k":
-      "https://mikhmon.jacobjs.my.id/?hotspot-user=generate&genprof=30k-1bl&session=AgungWifi",
-  };
+    // qty (clear dulu)
+    await page.waitForSelector('input[name="qty"]');
+    await page.click('input[name="qty"]', { clickCount: 3 });
+    await page.keyboard.press("Backspace");
+    await page.type('input[name="qty"]', String(qty));
 
-  await page.goto(urlMap[profile], { waitUntil: "networkidle2" });
+    await page.select('select[name="server"]', "all");
 
-  console.log("✅ Halaman generate");
+    await page.select('select[name="user"]', "vc");
+    await page.waitForSelector('select[name="userl"]');
+    await page.select('select[name="userl"]', "8");
 
-  // ================= FORM =================
+    // timelimit
+    await page.click('input[name="timelimit"]', { clickCount: 3 });
+    await page.keyboard.press("Backspace");
+    await page.type('input[name="timelimit"]', config.time);
 
-  // qty (FIX BUG 36 jadi 361)
-  await page.waitForSelector('input[name="qty"]');
-  await page.click('input[name="qty"]', { clickCount: 3 });
-  await page.keyboard.press("Backspace");
-  await page.type('input[name="qty"]', "36");
+    // datalimit
+    await page.click('input[name="datalimit"]', { clickCount: 3 });
+    await page.keyboard.press("Backspace");
+    await page.type('input[name="datalimit"]', config.data);
 
-  await page.select('select[name="server"]', "all");
+    // mbgb
+    const mbgb = await page.$('select[name="mbgb"]');
 
-  // user
-  await page.select('select[name="user"]', "vc");
+    if (mbgb) {
+      await page.$eval('select[name="mbgb"]', (el) => {
+        el.value = "1073741824";
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    }
 
-  // tunggu onchange
-  await page.waitForSelector('select[name="userl"]');
-  await page.select('select[name="userl"]', "8");
+    // submit generate
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: "networkidle2" }),
+      page.click('button[name="save"]'),
+    ]);
 
-  // mapping limit
-  const config = {
-    "2k": { time: "12h", data: "2" },
-    "3k": { time: "1d", data: "3" },
-    "10k": { time: "7d", data: "8" },
-    "30k": { time: "4w3d", data: "100" },
-  };
+    // ambil batch terakhir
+    await page.goto(
+      "https://mikhmon.jacobjs.my.id/?hotspot=users&profile=all&session=AgungWifi",
+      { waitUntil: "networkidle2" },
+    );
 
-  const { time, data } = config[profile];
+    const lastComment = await page.evaluate(() => {
+      const select = document.querySelector("#comment");
+      return select.options[select.options.length - 1].value;
+    });
 
-  // timelimit
-  await page.waitForSelector('input[name="timelimit"]');
-  await page.click('input[name="timelimit"]', { clickCount: 3 });
-  await page.keyboard.press("Backspace");
-  await page.type('input[name="timelimit"]', time);
+    // buka print page
+    const printUrl = `https://mikhmon.jacobjs.my.id/voucher/print.php?id=${lastComment}&qr=yes&session=AgungWifi`;
 
-  // datalimit
-  await page.waitForSelector('input[name="datalimit"]');
-  await page.click('input[name="datalimit"]', { clickCount: 3 });
-  await page.keyboard.press("Backspace");
-  await page.type('input[name="datalimit"]', data);
+    await page.goto(printUrl, { waitUntil: "networkidle2" });
 
-  // mbgb
-  const mbgb = await page.$('input[name="mbgb"]');
-  if (mbgb) {
-    await page.$eval('input[name="mbgb"]', (el) => (el.value = "1073741824"));
+    await page.evaluate(() => {
+      window.print = () => {};
+    });
+
+    // save PDF
+    await page.pdf({
+      path: fileName,
+      format: "A4",
+      printBackground: true,
+    });
+
+    await browser.close();
+
+    // kirim file ke client
+    res.download(fileName, fileName, (err) => {
+      if (!err) fs.unlinkSync(fileName); // hapus setelah kirim
+    });
+  } catch (err) {
+    await browser.close();
+    console.error(err);
+    res.status(500).json({ error: "Gagal generate voucher" });
   }
+});
 
-  // ================= GENERATE =================
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: "networkidle2" }),
-    page.click('button[name="save"]'),
-  ]);
-
-  console.log("✅ Generate selesai");
-
-  // ================= AMBIL BATCH TERAKHIR =================
-  await page.goto(
-    "https://mikhmon.jacobjs.my.id/?hotspot=users&profile=all&session=AgungWifi",
-    { waitUntil: "networkidle2" },
-  );
-
-  const lastComment = await page.evaluate(() => {
-    const select = document.querySelector("#comment");
-    return select.options[select.options.length - 1].value;
-  });
-
-  console.log("📦 Batch:", lastComment);
-
-  // ================= OPEN PRINT PAGE =================
-  const printUrl = `https://mikhmon.jacobjs.my.id/voucher/print.php?id=${lastComment}&qr=yes&session=AgungWifi`;
-
-  await page.goto(printUrl, { waitUntil: "networkidle2" });
-
-  // disable auto print popup
-  await page.evaluate(() => {
-    window.print = () => {};
-  });
-
-  // ================= SAVE PDF =================
-  await page.emulateMediaType("screen");
-
-  await page.pdf({
-    path: `voucher-${profile}-${lastComment}.pdf`,
-    format: "A4",
-    printBackground: true,
-  });
-
-  console.log("✅ PDF berhasil dibuat");
-
-  await browser.close();
-})();
+app.listen(PORT, () => {
+  console.log(`🚀 API jalan di http://localhost:${PORT}`);
+});
